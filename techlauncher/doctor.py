@@ -118,10 +118,15 @@ def run(layout: Layout) -> List[Check]:
         import tkinter  # noqa: F401
         checks.append(Check(OK, "Окно лаунчера (tkinter)", "есть"))
     except ImportError:
-        checks.append(Check(INFO, "Окно лаунчера (tkinter)", "нет",
-                            "в этом Python окна нет (пакет python3-tkinter ставится только с sudo). "
-                            "Запустите лаунчер через start.py — он сам скачает переносной Python "
-                            "с окном. Команды в терминале работают и так"))
+        portable = layout.main_dir / "python" / "bin" / "python3"
+        if portable.is_file():
+            checks.append(Check(OK, "Окно лаунчера (tkinter)",
+                                f"есть в переносном Python ({portable}); окно открывается через start.py"))
+        else:
+            checks.append(Check(INFO, "Окно лаунчера (tkinter)", "нет",
+                                "в этом Python окна нет (пакет python3-tkinter ставится только с sudo). "
+                                "Запустите лаунчер через start.py — он сам скачает переносной Python "
+                                "с окном. Команды в терминале работают и так"))
 
     try:
         layout.main_dir.mkdir(parents=True, exist_ok=True)
