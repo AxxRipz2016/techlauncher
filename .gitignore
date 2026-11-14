@@ -1,0 +1,11 @@
+# Тестовые данные (скачанные игры, Java, Wine)
+test-data/
+test-linux/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv*/

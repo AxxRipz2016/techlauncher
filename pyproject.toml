@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "techlauncher"
+version = "0.1.0"
+description = "Лаунчер Minecraft и SCP: Containment Breach для учебных ПК (Windows и Linux без sudo)"
+readme = "README.md"
+requires-python = ">=3.7"
+dependencies = []
+
+[project.scripts]
+techlauncher = "techlauncher.cli:main"
+
+[tool.setuptools]
+packages = ["techlauncher", "techlauncher.mc"]
