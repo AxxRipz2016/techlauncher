@@ -95,8 +95,12 @@ Mojang пускает к Minecraft API только **одобренные пр�
   2. Вступительное видео: под Wine нет видеокодеков, и `BlitzMovie.dll` портит память.
      На Linux видео выключается (`play startup video = false`); вернуть можно
      флагом `scp start --startup-video`.
-- Если в Python нет `tkinter` (на РЕД ОС это отдельный пакет `python3-tkinter`),
-  окно не откроется, но все команды работают в терминале.
+- **Окно без tkinter.** tkinter нельзя поставить через pip: это часть самого Python,
+  а в Linux её выносят в системный пакет `python3-tkinter`, который ставится только
+  с sudo. Поэтому `start.py`, если окна нет, сам скачивает переносной Python со
+  встроенным tkinter ([python-build-standalone](https://github.com/astral-sh/python-build-standalone),
+  ~33 МБ, проверка SHA-256) в `<папка лаунчера>/python` и перезапускается через него.
+  Команды в терминале работают и без этого.
 
 ## Как это устроено
 

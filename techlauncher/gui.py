@@ -31,7 +31,8 @@ def run(layout: Layout) -> int:
         import tkinter as tk
     except ImportError:
         print("Окно недоступно: в этом Python нет tkinter (пакет python3-tkinter).\n"
-              "Все возможности есть в командах, см.: python3 -m techlauncher --help")
+              "Запустите через start.py — он сам скачает переносной Python с окном.\n"
+              "Или используйте команды: python3 -m techlauncher --help")
         return 1
     try:
         root = tk.Tk()

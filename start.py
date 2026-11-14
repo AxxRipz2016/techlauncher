@@ -15,10 +15,14 @@
 Только стандартная библиотека, Python 3.7+.
 """
 
+import hashlib
 import json
 import os
+import re
 import shutil
+import subprocess
 import sys
+import tarfile
 import urllib.error
 import urllib.request
 import zipfile
@@ -123,6 +127,95 @@ def update(app: Path) -> None:
         raise SystemExit(f"[start] не удалось скачать лаунчер: {e}")
 
 
+# ------------------------------------------------------------------ переносной Python с окном
+#
+# tkinter нельзя поставить через pip: это часть самого Python (модуль на C и
+# библиотеки Tcl/Tk), а в Linux его выносят в системный пакет python3-tkinter,
+# который ставится только с sudo. Поэтому, если окна нет, скачиваем готовый
+# Python со встроенным tkinter: https://github.com/astral-sh/python-build-standalone
+
+PBS_API = "https://api.github.com/repos/astral-sh/python-build-standalone/releases/latest"
+PBS_RE = re.compile(r"^cpython-3\.12\.\d+\+\d+-x86_64-unknown-linux-gnu-install_only_stripped\.tar\.gz$")
+COMMANDS = {"doctor", "mc", "scp", "wine", "-h", "--help", "--version"}
+
+
+def wants_gui(args) -> bool:
+    return "gui" in args or not any(a in COMMANDS for a in args)
+
+
+def has_tkinter() -> bool:
+    try:
+        import tkinter  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+def portable_python(root: Path) -> Path:
+    return root / "python" / "bin" / "python3"
+
+
+def ensure_portable_python(root: Path):
+    """Скачать переносной Python с tkinter. Возвращает путь к нему или None."""
+    import platform
+    if not sys.platform.startswith("linux") or platform.machine().lower() not in ("x86_64", "amd64"):
+        return None
+    exe = portable_python(root)
+    if exe.is_file():
+        return exe
+    say("в этом Python нет tkinter, поэтому окно не откроется. Скачиваю переносной Python "
+        "с окном (~33 МБ, права администратора не нужны)...")
+    try:
+        req = urllib.request.Request(PBS_API, headers={"User-Agent": USER_AGENT})
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            release = json.loads(resp.read().decode("utf-8"))
+        asset = next(a for a in release["assets"] if PBS_RE.match(a["name"]))
+        expected = (asset.get("digest") or "").split(":", 1)[-1]
+
+        tmp = root / "python-download.tar.gz"
+        root.mkdir(parents=True, exist_ok=True)
+        req = urllib.request.Request(asset["browser_download_url"], headers={"User-Agent": USER_AGENT})
+        h = hashlib.sha256()
+        with urllib.request.urlopen(req, timeout=60) as resp, open(tmp, "wb") as out:
+            for chunk in iter(lambda: resp.read(1024 * 1024), b""):
+                h.update(chunk)
+                out.write(chunk)
+        if expected and h.hexdigest() != expected:
+            tmp.unlink()
+            raise RuntimeError("не совпала контрольная сумма SHA-256")
+
+        staging = root / "python.new"
+        if staging.exists():
+            shutil.rmtree(staging)
+        staging.mkdir()
+        with tarfile.open(tmp) as tf:
+            for m in tf.getmembers():
+                target = (staging / m.name).resolve()
+                if staging.resolve() not in target.parents:
+                    raise RuntimeError(f"подозрительный путь в архиве: {m.name}")
+            if hasattr(tarfile, "data_filter"):
+                tf.extractall(staging, filter="data")
+            else:
+                tf.extractall(staging)
+        tmp.unlink()
+        if (root / "python").exists():
+            shutil.rmtree(root / "python")
+        (staging / "python").rename(root / "python")
+        shutil.rmtree(staging)
+    except (OSError, RuntimeError, StopIteration, KeyError, ValueError, tarfile.TarError) as e:
+        say(f"не удалось скачать переносной Python ({e}). Окна не будет, но все команды "
+            "работают: python3 start.py --help")
+        return None
+
+    check = subprocess.run([str(exe), "-c", "import tkinter"], stdout=subprocess.DEVNULL,
+                           stderr=subprocess.PIPE, universal_newlines=True)
+    if check.returncode != 0:
+        say(f"в скачанном Python tkinter не работает: {check.stderr.strip()[-200:]}")
+        return None
+    say(f"переносной Python готов: {exe}")
+    return exe
+
+
 def main() -> int:
     if sys.version_info < (3, 7):
         print("Нужен Python 3.7 или новее")
@@ -131,10 +224,19 @@ def main() -> int:
     no_update = "--no-update" in args or os.environ.get("TECHL_NO_UPDATE") == "1"
     args = [a for a in args if a != "--no-update"]
 
-    app = main_dir() / "app"
+    root = main_dir()
+    app = root / "app"
     if not no_update:
         update(app)
     current = app / "current"
+
+    # Окно без tkinter не откроется — перезапускаемся через переносной Python.
+    if wants_gui(args) and not has_tkinter() and os.environ.get("TECHL_PORTABLE_PY") != "1":
+        exe = ensure_portable_python(root)
+        if exe is not None:
+            os.environ["TECHL_PORTABLE_PY"] = "1"
+            script = str(Path(__file__).resolve())
+            os.execv(str(exe), [str(exe), script, "--no-update", *args])
     if not (current / "techlauncher" / "__init__.py").is_file():
         print(f"[start] лаунчер не найден в {current}; запустите без --no-update")
         return 1
