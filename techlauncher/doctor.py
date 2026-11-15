@@ -155,18 +155,18 @@ def run(layout: Layout) -> List[Check]:
 
     if linux:
         try:
-            wine_bin = wine.find_wine(layout)
-            out = subprocess.run([wine_bin, "--version"], stdout=subprocess.PIPE,
-                                 stderr=subprocess.PIPE, universal_newlines=True, timeout=60)
-            ver = (out.stdout or out.stderr).strip()
-            checks.append(Check(OK if out.returncode == 0 else FAIL, "Wine (для SCP:CB)",
-                                f"{ver} ({wine_bin})",
-                                "" if out.returncode == 0 else "Wine не запускается"))
+            w = wine.resolve(layout)
         except LauncherError:
             checks.append(Check(WARN, "Wine (для SCP:CB)", "не найден",
                                 "выполните: techlauncher wine install (sudo не нужен)"))
-        except (OSError, subprocess.TimeoutExpired) as e:
-            checks.append(Check(FAIL, "Wine (для SCP:CB)", str(e), "Wine не запускается"))
+        else:
+            try:
+                checks.append(Check(OK, "Wine (для SCP:CB)", f"{w.version()}, {w.kind} ({w.loader})",
+                                    "" if w.managed else "системный Wine может не уметь 32-битные "
+                                    "игры; надёжнее переносной: techlauncher wine install"))
+            except LauncherError as e:
+                checks.append(Check(FAIL, "Wine (для SCP:CB)", str(e),
+                                    "переустановите: techlauncher wine install --force"))
         if not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
             checks.append(Check(WARN, "Графический сеанс", "нет DISPLAY/WAYLAND_DISPLAY",
                                 "запускайте из терминала на рабочем столе, не по SSH"))

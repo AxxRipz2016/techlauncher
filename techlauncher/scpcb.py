@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -284,18 +285,17 @@ def start(layout: Layout, inst: Instance, *, resolution: Tuple[int, int] | None 
     settings += extra or []
     apply_settings(inst, settings, warn=log)
 
-    prefix = None
     if wine.needs_wine():
+        w = wine.resolve(layout, wine_path)
         prefix = wine_prefix or layout.wine_prefix
-    new_prefix = prefix is not None and not prefix.exists()
-    cmd, env = wine.build_command(layout, inst.exe_path, list(args or []), wine_path, prefix)
-    if dry:
-        return cmd
-    if wine.needs_wine() and vram > 0:
-        if new_prefix:
-            log("Первый запуск: Wine создаёт свою папку настроек, это займёт около минуты...")
-        if wine.ensure_video_memory(cmd[0], env, prefix, vram):
-            log(f"Wine: игре сообщается {vram} МБ видеопамяти (защита от вылета при загрузке)")
+        cmd, env = [w.loader, str(inst.exe_path), *(args or [])], w.env(prefix)
+        if dry:
+            return cmd
+        wine.prepare_prefix(w, env, prefix, vram=vram, log=log)
+    else:
+        cmd, env = [str(inst.exe_path), *(args or [])], dict(os.environ)
+        if dry:
+            return cmd
     try:
         # Рабочая папка = папка игры: Blitz3D ищет файлы по относительным путям.
         return subprocess.Popen(cmd, cwd=str(inst.exe_path.parent), env=env, **(popen_kwargs or {}))

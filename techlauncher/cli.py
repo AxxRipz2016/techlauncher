@@ -108,22 +108,38 @@ def cmd_gui(args, layout: Layout) -> int:
 
 
 def cmd_wine(args, layout: Layout) -> int:
-    if args.wine_cmd == "install":
+    c = args.wine_cmd
+    if c != "remove" and not wine.needs_wine():
+        info("Windows: Wine не нужен, игры запускаются напрямую")
+        return 0
+    if c == "install":
         bar = ProgressBar("Wine")
         binary = wine.install(layout, args.tag, Path(args.file).expanduser() if args.file else None,
-                              progress=lambda b, t, f, tf: bar(b, t, f, tf), log=info)
+                              progress=lambda b, t, f, tf: bar(b, t, f, tf), log=info, force=args.force)
         bar.finish()
-        info(f"Wine установлен: {binary}")
-    elif args.wine_cmd == "status":
-        if not wine.needs_wine():
-            info("Windows: Wine не нужен")
-            return 0
+        info(f"Wine готов: {binary}")
+    elif c == "status":
         try:
-            info(wine.find_wine(layout))
-        except LauncherError:
-            info("Wine не найден. Установите без sudo: techlauncher wine install")
+            rows = wine.status(layout)
+        except LauncherError as e:
+            info(str(e))
             return 1
-    elif args.wine_cmd == "remove":
+        for k, v in rows:
+            print(f"{k + ':' if k else '':<22}{v}")
+    elif c == "kill":
+        info("программы Wine закрыты" if wine.kill(wine.resolve(layout), layout.wine_prefix)
+             else "запущенных программ Wine нет")
+    elif c == "reset":
+        if not args.yes:
+            if not sys.stdin.isatty():
+                raise LauncherError("для сброса без вопроса используйте -y")
+            if input("Удалить папку настроек Wine? Сохранения игр не пострадают. [y/N] "
+                     ).strip().lower() not in ("y", "д", "да", "yes"):
+                info("отменено")
+                return 0
+        info("папка настроек удалена, при запуске игры создастся заново"
+             if wine.reset_prefix(layout) else "папки настроек ещё нет")
+    elif c == "remove":
         info("удалено" if wine.remove(layout) else "переносной Wine не установлен")
     return 0
 
@@ -431,11 +447,17 @@ def build_parser() -> argparse.ArgumentParser:
     # --- Wine
     w = sub.add_parser("wine", help="[Linux] переносной Wine без sudo").add_subparsers(dest="wine_cmd", metavar="ДЕЙСТВИЕ")
     w.required = True
-    s = w.add_parser("install", help="скачать Wine в папку лаунчера")
-    s.add_argument("--tag", help="версия сборки (по умолчанию последняя)")
+    s = w.add_parser("install", help="скачать или обновить Wine (без sudo)")
+    s.add_argument("--tag", help="версия сборки (по умолчанию последняя стабильная)")
     s.add_argument("--file", metavar="PATH", help="уже скачанный wine-*-amd64-wow64.tar.xz")
+    s.add_argument("--force", action="store_true", help="переустановить, даже если версия та же")
     s.set_defaults(func=cmd_wine)
-    s = w.add_parser("status", help="какой Wine используется")
+    s = w.add_parser("status", help="какой Wine используется, состояние папки настроек")
+    s.set_defaults(func=cmd_wine)
+    s = w.add_parser("kill", help="закрыть зависшую игру и все программы Wine")
+    s.set_defaults(func=cmd_wine)
+    s = w.add_parser("reset", help="сбросить папку настроек Wine (сохранения не трогает)")
+    s.add_argument("-y", "--yes", action="store_true")
     s.set_defaults(func=cmd_wine)
     s = w.add_parser("remove", help="удалить переносной Wine")
     s.set_defaults(func=cmd_wine)

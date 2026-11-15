@@ -410,6 +410,34 @@ class App:
             ttk.Label(f, text="На Linux игра запускается через Wine; если его нет, лаунчер "
                               "предложит скачать (без прав администратора).",
                       foreground="gray").grid(row=5, column=0, columnspan=2, sticky="w", pady=(10, 0))
+            wb = ttk.Frame(f)
+            wb.grid(row=6, column=0, columnspan=2, sticky="w", pady=(6, 0))
+            ttk.Button(wb, text="Закрыть зависшую игру", command=self._wine_kill).pack(side="left")
+            ttk.Button(wb, text="Обновить Wine", command=self._wine_update).pack(side="left", padx=8)
+            ttk.Button(wb, text="Сбросить настройки Wine", command=self._wine_reset).pack(side="left")
+
+    def _wine_kill(self) -> None:
+        def task() -> None:
+            done = wine.kill(wine.resolve(self.layout), self.layout.wine_prefix)
+            self.log("Программы Wine закрыты" if done else "Запущенных программ Wine нет")
+        self.run_task(task, "Закрываю программы Wine...")
+
+    def _wine_update(self) -> None:
+        def task() -> None:
+            wine.install(self.layout, progress=lambda b, t, f, tf: self.progress("Wine", b, t, f, tf),
+                         log=self.log)
+        self.run_task(task, "Проверка обновлений Wine...")
+
+    def _wine_reset(self) -> None:
+        from tkinter import messagebox
+        if not messagebox.askyesno("Wine", "Сбросить папку настроек Wine? Это помогает, если игра "
+                                           "перестала запускаться. Сохранения не пострадают."):
+            return
+
+        def task() -> None:
+            self.log("Папка настроек Wine удалена, при запуске создастся заново"
+                     if wine.reset_prefix(self.layout) else "Папки настроек Wine ещё нет")
+        self.run_task(task, "Сброс настроек Wine...")
 
     def _fill_scp(self) -> None:
         names = [i.name for i in scpcb.list_instances(self.layout)]

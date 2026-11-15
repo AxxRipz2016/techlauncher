@@ -49,7 +49,10 @@ python3 -m techlauncher doctor   # проверить компьютер
 | `scp import АРХИВ --name ИМЯ` | добавить мод |
 | `scp start [--resolution 1280x720] [--fullscreen]` | запустить SCP:CB |
 | `scp config [ключ=значение]` | показать или изменить `options.ini` |
-| `wine install` | (Linux) скачать переносной Wine |
+| `wine install` | (Linux) скачать или обновить переносной Wine |
+| `wine status` | какой Wine используется, состояние его папки настроек |
+| `wine kill` | закрыть зависшую игру и все программы Wine |
+| `wine reset` | сбросить папку настроек Wine (сохранения игр не трогает) |
 
 Опции `mc start`: `--ram 2048`, `--resolution 1280x720`, `--server host:port`,
 `--java ПУТЬ`, `--jvm-arg=-X...`, `--dry` (показать команду, не запуская).
@@ -101,6 +104,13 @@ Mojang пускает к Minecraft API только **одобренные пр�
   встроенным tkinter ([python-build-standalone](https://github.com/astral-sh/python-build-standalone),
   ~33 МБ, проверка SHA-256) в `<папка лаунчера>/python` и перезапускается через него.
   Команды в терминале работают и без этого.
+- **Как лаунчер обращается с Wine.** Перед первым запуском игры он сам готовит папку
+  настроек Wine (`wineboot`) и только потом настраивает её. Раньше на свежем компьютере
+  здесь бывала ошибка `could not load kernel32.dll`. Переносной Wine не смешивается
+  с системным (`WINELOADER`/`WINESERVER`). Wine не создаёт ярлыков в меню, а «Документы»
+  и «Рабочий стол» внутри Wine — отдельные папки, не ваши. Если игра зависла, есть
+  `wine kill` или кнопка «Закрыть зависшую игру»; если перестала запускаться — `wine reset`.
+- **Подробный журнал Wine** для поиска ошибок: `WINEDEBUG=err+all python3 start.py scp start`.
 
 ## Как это устроено
 
